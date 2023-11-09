@@ -93,15 +93,6 @@ export default function useStore() {
         const handler = async () => {
             const version = await runtime.getVersion()
             _setVersion(version)
-            try {
-                const config = await readConfig()
-                const os = await runtime.getPlatform()
-                const needUpdate = await remote.checkNeedUpdate(version, os, config)
-                setNeedCheckUpdate(needUpdate)
-            } catch (e) {
-                console.log(e)
-                setNeedCheckUpdate(true)
-            }
         }
         handler()
         updateCheckTimer.current = setInterval(handler, 10 * 60 * 1000)

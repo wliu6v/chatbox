@@ -8,8 +8,8 @@
         "withGlobalTauri": true
     },
     "package": {
-        "productName": "chatbox",
-        "version": "0.0.1"
+        "productName": "ChatBox",
+        "version": "2.0.1"
     },
     "tauri": {
         "allowlist": {
@@ -85,7 +85,7 @@
             "csp": null
         },
         "updater": {
-            "active": true,
+            "active": false,
             "endpoints": [
                 "https://releases.chatboxai.app/chatbox/{{target}}/{{current_version}}",
                 "https://gist.githubusercontent.com/Bin-Huang/cf0b7684e28b30d760ba02417bbac916/raw/chatbox.releases.json",
@@ -99,7 +99,7 @@
                 "fullscreen": false,
                 "height": 800,
                 "resizable": true,
-                "title": "chatbox",
+                "title": "ChatBox",
                 "width": 1000
             }
         ]

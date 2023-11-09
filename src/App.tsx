@@ -1,42 +1,37 @@
-import React, { useEffect, useRef, useState, MutableRefObject } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import MessageBox from './components/MessageBox'
 import * as llm from './packages/llm'
 import SessionItem from './components/SessionItem'
 import {
-    Toolbar,
     Box,
-    Badge,
-    Snackbar,
-    List,
-    ListSubheader,
-    ListItemText,
-    MenuList,
-    IconButton,
-    Button,
     ButtonGroup,
-    Stack,
-    Grid,
-    MenuItem,
-    ListItemIcon,
-    Typography,
-    Divider,
-    TextField,
-    useTheme,
-    useMediaQuery,
     debounce,
+    Divider,
+    Grid,
+    IconButton,
+    List,
+    ListItemIcon,
+    ListItemText,
+    ListSubheader,
+    MenuItem,
+    MenuList,
+    Snackbar,
+    Stack,
+    Toolbar,
+    Typography,
+    useMediaQuery,
+    useTheme
 } from '@mui/material'
-import { Session, createSession, Message, createMessage } from './stores/types'
+import { createMessage, createSession, Message, Session } from './stores/types'
 import useStore from './stores/store'
 import SettingDialog from './dialogs/SettingDialog'
 import ChatConfigDialog from './dialogs/ChatConfigDialog'
 import SettingsIcon from '@mui/icons-material/Settings'
 import AddIcon from '@mui/icons-material/Add'
-import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined'
 import * as prompts from './packages/prompts'
 import CleaningServicesIcon from '@mui/icons-material/CleaningServices'
 import Save from '@mui/icons-material/Save'
 import CleanWidnow from './dialogs/CleanDialog'
-import AboutDialog from './dialogs/AboutDialog'
 import { ThemeSwitcherProvider } from './theme/ThemeSwitcher'
 import { useTranslation } from 'react-i18next'
 import icon from './assets/icon.png'
@@ -49,15 +44,15 @@ import './styles/App.scss'
 import MenuOpenIcon from '@mui/icons-material/MenuOpen'
 import type { DragEndEvent } from '@dnd-kit/core'
 import {
+    closestCenter,
     DndContext,
     KeyboardSensor,
     MouseSensor,
     TouchSensor,
-    closestCenter,
     useSensor,
-    useSensors,
+    useSensors
 } from '@dnd-kit/core'
-import { SortableContext, arrayMove, sortableKeyboardCoordinates, verticalListSortingStrategy } from '@dnd-kit/sortable'
+import { arrayMove, SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { restrictToVerticalAxis } from '@dnd-kit/modifiers'
 import { SortableItem } from './components/SortableItem'
 import InputBox from './components/InputBox'
@@ -65,24 +60,27 @@ import InputBox from './components/InputBox'
 function Main() {
     const { t } = useTranslation()
     const store = useStore()
+    const currentSessionRef = useRef<Session>()
+    const sortedSessionsRef = useRef<Session[]>([])
     const sensors = useSensors(
         useSensor(TouchSensor, {
             activationConstraint: {
                 delay: 250,
-                tolerance: 5,
-            },
+                tolerance: 5
+            }
         }),
         useSensor(MouseSensor, {
             activationConstraint: {
-                distance: 10,
-            },
+                distance: 10
+            }
         }),
         useSensor(KeyboardSensor, {
-            coordinateGetter: sortableKeyboardCoordinates,
-        }),
+            coordinateGetter: sortableKeyboardCoordinates
+        })
     )
 
     const sortedSessions = sortSessions(store.chatSessions)
+
     function handleDragEnd(event: DragEndEvent) {
         const { active, over } = event
         if (!over) {
@@ -98,14 +96,14 @@ function Main() {
 
     // 是否展示设置窗口
     const [openSettingDialog, setOpenSettingDialog] = React.useState(false)
-    useEffect(() => {
-        if (store.needSetting) {
-            setOpenSettingDialog(true)
-        }
-    }, [store.needSetting])
+    // useEffect(() => {
+    //     if (store.needSetting) {
+    //         setOpenSettingDialog(true)
+    //     }
+    // }, [store.needSetting])
 
     // 是否展示相关信息的窗口
-    const [openAboutDialog, setOpenAboutDialog] = React.useState(false)
+    // const [openAboutDialog, setOpenAboutDialog] = React.useState(false)
 
     // 是否展示菜单栏
     const theme = useTheme()
@@ -139,7 +137,7 @@ function Main() {
         element.scrollIntoView({
             behavior: messageScrollRef.current.smooth ? 'smooth' : 'auto',
             block: 'end',
-            inline: 'nearest',
+            inline: 'nearest'
         })
     })
     // stop auto-scroll when user scroll
@@ -147,7 +145,7 @@ function Main() {
         if (!messageListRef.current) {
             return
         }
-        messageListRef.current.addEventListener('wheel', function (e: any) {
+        messageListRef.current.addEventListener('wheel', function(e: any) {
             messageScrollRef.current = null
         })
     }, [])
@@ -155,7 +153,12 @@ function Main() {
     // 切换到当前会话，自动滚动到最后一条消息
     useEffect(() => {
         messageListToBottom()
+        currentSessionRef.current = store.currentSession
     }, [store.currentSession.id])
+
+    useEffect(() => {
+        sortedSessionsRef.current = sortedSessions
+    }, [sortedSessions])
 
     // show scroll to top or bottom button when user scroll
     const [atScrollTop, setAtScrollTop] = React.useState(false)
@@ -229,18 +232,80 @@ function Main() {
         store.addToast(t('copied to clipboard'))
     })
 
+    function switchToIdx(idx: number) {
+        if (idx >= sortedSessionsRef.current.length) {
+            return
+        }
+        store.switchCurrentSession(sortedSessionsRef.current[idx])
+    }
+
+    function switchToNext() {
+        const index = sortedSessionsRef.current.findIndex(session => session.id === currentSessionRef.current?.id)
+        if (index < sortedSessionsRef.current.length - 1) {
+            switchToIdx(index + 1)
+        } else {
+            switchToIdx(0)
+        }
+    }
+
+    function switchToPrev() {
+        const index = sortedSessionsRef.current.findIndex(session => session.id === currentSessionRef.current?.id)
+        if (index > 0) {
+            switchToIdx(index - 1)
+        } else {
+            switchToIdx(sortedSessionsRef.current.length - 1)
+        }
+    }
+
+    const handleKeydown = (event: any) => {
+        if (event.defaultPrevented) {
+            return
+        }
+
+        const isMac = window.navigator.platform.toUpperCase().indexOf('MAC') >= 0
+
+        // check prev/next page
+        let modifierKey = isMac ? (event.metaKey && event.shiftKey) : event.ctrlKey
+        if (modifierKey && event.key === '[') {
+            switchToPrev()
+        } else if (modifierKey && event.key === ']') {
+            switchToNext()
+        }
+
+        // check switch to index
+        modifierKey = isMac ? event.metaKey : event.ctrlKey
+        if (modifierKey && event.key.match(/[1-9]/)) {
+            const index = parseInt(event.key, 10) - 1
+            switchToIdx(index)
+        }
+    }
+
     // bind code block copy event on mounted
     useEffect(() => {
         document.addEventListener('click', codeBlockCopyEvent.current)
+        document.addEventListener('keydown', handleKeydown)
 
         return () => {
             document.removeEventListener('click', codeBlockCopyEvent.current)
+            document.removeEventListener('keydown', handleKeydown)
         }
     }, [])
 
     const [configureChatConfig, setConfigureChatConfig] = React.useState<Session | null>(null)
 
     const [sessionClean, setSessionClean] = React.useState<Session | null>(null)
+
+    const [quoteCache, setQuoteCache] = useState('')
+
+    const sessionListRef = useRef<HTMLDivElement>(null)
+    const handleCreateNewSession = () => {
+        store.createEmptyChatSession()
+        if (sessionListRef.current) {
+            sessionListRef.current.scrollTo(0, 0)
+        }
+    }
+
+    const textareaRef = useRef<HTMLTextAreaElement>(null)
 
     const editCurrentSession = () => {
         setConfigureChatConfig(store?.currentSession)
@@ -261,7 +326,7 @@ function Main() {
             },
             (err) => {
                 console.log(err)
-            },
+            }
         )
     }
     const saveSession = async (session: Session) => {
@@ -269,15 +334,15 @@ function Main() {
             filters: [
                 {
                     name: 'Export',
-                    extensions: ['md'],
-                },
-            ],
+                    extensions: ['md']
+                }
+            ]
         })
         if (filePath) {
             const content = session.messages
                 .map((msg) => `**${msg.role}**:\n${msg.content}`)
                 .join('\n\n--------------------\n\n')
-            await writeTextFile(filePath!, content)
+            await writeTextFile(filePath, content)
         }
     }
 
@@ -299,7 +364,7 @@ function Main() {
                             content: text,
                             cancel,
                             model: store.settings.model,
-                            generating: true,
+                            generating: true
                         }
                         break
                     }
@@ -313,19 +378,19 @@ function Main() {
                             ...session.messages[i],
                             content: t('api request failed:') + ' \n```\n' + err.message + '\n```',
                             model: store.settings.model,
-                            generating: false,
+                            generating: false
                         }
                         break
                     }
                 }
                 store.updateChatSession(session)
-            },
+            }
         )
         for (let i = 0; i < session.messages.length; i++) {
             if (session.messages[i].id === targetMsg.id) {
                 session.messages[i] = {
                     ...session.messages[i],
-                    generating: false,
+                    generating: false
                 }
                 break
             }
@@ -335,24 +400,12 @@ function Main() {
         messageScrollRef.current = null
     }
 
-    const [quoteCache, setQuoteCache] = useState('')
-
-    const sessionListRef = useRef<HTMLDivElement>(null)
-    const handleCreateNewSession = () => {
-        store.createEmptyChatSession()
-        if (sessionListRef.current) {
-            sessionListRef.current.scrollTo(0, 0)
-        }
-    }
-
-    const textareaRef = useRef<HTMLTextAreaElement>(null)
-
     return (
         <Box className="App">
             <Grid
                 container
                 sx={{
-                    height: '100%',
+                    height: '100%'
                 }}
             >
                 {showMenu && (
@@ -366,8 +419,8 @@ function Main() {
                                 left: '20px',
                                 right: 0,
                                 bottom: 0,
-                                top: 0,
-                            },
+                                top: 0
+                            }
                         }}
                     >
                         <Stack
@@ -377,8 +430,8 @@ function Main() {
                                 height: '100%',
                                 [theme.breakpoints.down('sm')]: {
                                     position: 'absolute',
-                                    zIndex: 1,
-                                },
+                                    zIndex: 1
+                                }
                             }}
                             spacing={2}
                         >
@@ -386,7 +439,7 @@ function Main() {
                                 variant="dense"
                                 sx={{
                                     display: 'flex',
-                                    alignItems: 'flex-end',
+                                    alignItems: 'flex-end'
                                 }}
                             >
                                 <img
@@ -394,7 +447,7 @@ function Main() {
                                     style={{
                                         width: '35px',
                                         height: '35px',
-                                        marginRight: '5px',
+                                        marginRight: '5px'
                                     }}
                                 />
                                 <Typography variant="h5" color="inherit" component="div" style={{ fontSize: '26px' }}>
@@ -408,7 +461,7 @@ function Main() {
                                     position: 'relative',
                                     overflow: 'auto',
                                     height: '60vh',
-                                    '& ul': { padding: 0 },
+                                    '& ul': { padding: 0 }
                                 }}
                                 className="scroll"
                                 subheader={<ListSubheader component="div">{t('chat')}</ListSubheader>}
@@ -441,7 +494,7 @@ function Main() {
                                                     switchStarred={() => {
                                                         store.updateChatSession({
                                                             ...session,
-                                                            starred: !session.starred,
+                                                            starred: !session.starred
                                                         })
                                                     }}
                                                     editMe={() => setConfigureChatConfig(session)}
@@ -482,25 +535,25 @@ function Main() {
                                     </Typography>
                                 </MenuItem>
 
-                                <MenuItem onClick={() => setOpenAboutDialog(true)}>
-                                    <ListItemIcon>
-                                        <IconButton>
-                                            <InfoOutlinedIcon fontSize="small" />
-                                        </IconButton>
-                                    </ListItemIcon>
-                                    <ListItemText>
-                                        <Badge
-                                            color="primary"
-                                            variant="dot"
-                                            invisible={!store.needCheckUpdate}
-                                            sx={{ paddingRight: '8px' }}
-                                        >
-                                            <Typography sx={{ opacity: 0.5 }}>
-                                                {t('About')} ({store.version})
-                                            </Typography>
-                                        </Badge>
-                                    </ListItemText>
-                                </MenuItem>
+                                {/*<MenuItem onClick={() => setOpenAboutDialog(true)}>*/}
+                                {/*    <ListItemIcon>*/}
+                                {/*        <IconButton>*/}
+                                {/*            <InfoOutlinedIcon fontSize="small" />*/}
+                                {/*        </IconButton>*/}
+                                {/*    </ListItemIcon>*/}
+                                {/*    <ListItemText>*/}
+                                {/*        <Badge*/}
+                                {/*            color="primary"*/}
+                                {/*            variant="dot"*/}
+                                {/*            invisible={!store.needCheckUpdate}*/}
+                                {/*            sx={{ paddingRight: '8px' }}*/}
+                                {/*        >*/}
+                                {/*            <Typography sx={{ opacity: 0.5 }}>*/}
+                                {/*                {t('About')} ({store.version})*/}
+                                {/*            </Typography>*/}
+                                {/*        </Badge>*/}
+                                {/*    </ListItemText>*/}
+                                {/*</MenuItem>*/}
                             </MenuList>
                         </Stack>
                         <Box
@@ -513,24 +566,25 @@ function Main() {
                                 bottom: 0,
                                 backgroundColor: 'rgba(0, 0, 0, 0.3)',
                                 [theme.breakpoints.up('sm')]: {
-                                    display: 'none',
-                                },
+                                    display: 'none'
+                                }
                             }}
                         ></Box>
                     </Grid>
                 )}
+
                 <Grid
                     item
                     xs
                     sx={{
                         width: '0px',
-                        height: '100%',
+                        height: '100%'
                     }}
                 >
                     <Stack
                         sx={{
                             height: '100%',
-                            position: 'relative',
+                            position: 'relative'
                         }}
                     >
                         <Toolbar style={{ padding: '0 10px' }}>
@@ -540,7 +594,7 @@ function Main() {
                                         src={icon}
                                         style={{
                                             width: '30px',
-                                            height: '30px',
+                                            height: '30px'
                                         }}
                                     />
                                 ) : (
@@ -555,7 +609,7 @@ function Main() {
                                 sx={{
                                     flex: 1,
                                     overflow: 'hidden',
-                                    textOverflow: 'ellipsis',
+                                    textOverflow: 'ellipsis'
                                 }}
                             >
                                 <span
@@ -567,7 +621,7 @@ function Main() {
                                     {store.currentSession.name}
                                 </span>
                             </Typography>
-                            <SponsorChip sessionId={store.currentSession.id} />
+                            {/*<SponsorChip sessionId={store.currentSession.id} />*/}
                             <IconButton
                                 edge="start"
                                 color="inherit"
@@ -593,7 +647,7 @@ function Main() {
                                 bgcolor: 'background.paper',
                                 overflow: 'auto',
                                 '& ul': { padding: 0 },
-                                height: '100%',
+                                height: '100%'
                             }}
                             component="div"
                             ref={messageListRef}
@@ -617,11 +671,12 @@ function Main() {
                                     }}
                                     delMsg={() => {
                                         store.currentSession.messages = store.currentSession.messages.filter(
-                                            (m) => m.id !== msg.id,
+                                            (m) => m.id !== msg.id
                                         )
                                         store.updateChatSession(store.currentSession)
                                     }}
                                     refreshMsg={() => {
+                                        console.log(`current session in box: ${store.currentSession.name}`)
                                         if (msg.role === 'assistant') {
                                             const promptMsgs = store.currentSession.messages.slice(0, ix)
                                             generate(store.currentSession, promptMsgs, msg)
@@ -637,6 +692,7 @@ function Main() {
                                         }
                                     }}
                                     copyMsg={() => {
+                                        console.log(`current session in box: ${store.currentSession.name}`)
                                         navigator.clipboard.writeText(msg.content)
                                         store.addToast(t('copied to clipboard'))
                                     }}
@@ -658,7 +714,7 @@ function Main() {
                                         position: 'absolute',
                                         right: '0.2rem',
                                         top: '-5.5rem',
-                                        opacity: 0.6,
+                                        opacity: 0.6
                                     }}
                                     orientation="vertical"
                                 >
@@ -686,7 +742,7 @@ function Main() {
                                         store.currentSession.messages = [
                                             ...store.currentSession.messages,
                                             newUserMsg,
-                                            newAssistantMsg,
+                                            newAssistantMsg
                                         ]
                                         store.updateChatSession(store.currentSession)
                                         generate(store.currentSession, promptsMsgs, newAssistantMsg)
@@ -715,12 +771,12 @@ function Main() {
                     }}
                     close={() => setOpenSettingDialog(false)}
                 />
-                <AboutDialog
-                    open={openAboutDialog}
-                    version={store.version}
-                    lang={store.settings.language}
-                    close={() => setOpenAboutDialog(false)}
-                />
+                {/*<AboutDialog*/}
+                {/*    open={openAboutDialog}*/}
+                {/*    version={store.version}*/}
+                {/*    lang={store.settings.language}*/}
+                {/*    close={() => setOpenAboutDialog(false)}*/}
+                {/*/>*/}
                 {configureChatConfig !== null && (
                     <ChatConfigDialog
                         open={configureChatConfig !== null}
